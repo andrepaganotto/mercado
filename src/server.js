@@ -8,7 +8,7 @@ const port = 3000;
 app.use(express.json());
 app.use(cors({ origin: '*' }));
 
-app.get('/', (req, res) => res.send('Hello world').end());
+app.use('/', (req, res) => res.send('Hello world').end());
 
 const server = app.listen(port, () => console.log(`Server running on http://localhost:${port}`));
 

@@ -1,0 +1,482 @@
+MERCADO BITCOIN API DOCUMENTATION:
+
+Base REST API URL: https://api.mercadobitcoin.net/api/v4
+Base WebSockets URL: wss://ws.mercadobitcoin.net/ws
+
+PUBLIC DATA:
+
+
+
+
+
+
+ACCOUNT:
+
+    List accounts
+    GET /accounts
+    desc: Get a list of accounts owned by the user. Usually, MercadoBitcoin works with only one default account.
+    ex: https://api.mercadobitcoin.net/api/v4/accounts
+
+    HEADERS
+        REQUIRED > Authorization: 'Bearer [access_token]' (without the [])
+    
+    PARAMS
+        NONE
+
+    RESPONSE (200 OK)
+
+        currency (string): Currency of the account.
+        currencySign (string): CurrencySign of the account.
+        id (string): Account identifier (accountId).
+        name (string): Name of the account.
+        type (string): Account type
+        
+        example: [
+                    {
+                        "id": "458dfe86fda4fb1fe252d285c68d5393556a9ca9e06390b7857dcb0a85dcea88",
+                        "name": "main",
+                        "type": "NORMAL",
+                        "currency": "BRL",
+                        "currencySign": "R$"
+                    }
+                ]
+
+    ERRORS
+        > 403, 401 from GENERAL ERRORS
+     
+     
+     
+    ------------------------------------------------------------------------------------------
+
+
+    List balances
+    GET /accounts/{accountId}/balances
+    desc: Get balances for all markets, including fiat, for an account
+    ex: https://api.mercadobitcoin.net/api/v4/accounts/{accountId}/balances
+
+    HEADERS
+        REQUIRED > Authorization: 'Bearer [access_token]' (without the [])
+
+    PATH PARAMS
+        REQUIRED > accountId: The account id obtained from /accounts endpoint
+
+    RESPONSE (200 OK)
+
+        For each element on array: {
+            available (string): Available amount
+            on_hold	(string): On hold balance related to open orders
+            symbol (string): Symbol, i prefer to call it currency.
+            total (string): Total balance (available + on_hold)
+        }
+        
+        example: [
+                    {
+                        "available": "1000.00000050",
+                        "on_hold": "300.00000300",
+                        "symbol": "BRL",
+                        "total": "1300.00000350"
+                    }
+                ]
+
+    ERRORS
+        > 403, 401 from GENERAL ERRORS
+
+
+
+    ------------------------------------------------------------------------------------------
+
+
+    List positions
+    GET /accounts/{accountId}/positions
+    desc: Get open positions (open orders) for an account.
+    ex: https://api.mercadobitcoin.net/api/v4/accounts/{accountId}/positions
+
+    HEADERS
+        REQUIRED > Authorization: 'Bearer [access_token]' (without the [])
+
+    PATH PARAMS
+        REQUIRED > accountId: The account id obtained from /accounts endpoint
+
+    RESPONSE (200 OK)
+
+        For each element on array: {
+            avgPrice (number): Simple average price of position trades.
+            category (string): Type of orders > limit, post-only or stoplimit
+            id (string) Unique order identifier (orderId)
+            instrument (string) Instrument symbol in the form BASE-QUOTE (e.g. "BTC-BRL").
+            qty	(string) Order quantity (volume)
+            side (string) Side of orders
+        }
+        
+        example: [
+                    {
+                        "id": "01J2EKGGW1BVJFHTB2J7V6QR7G",
+                        "instrument": "REZ-BRL",
+                        "qty": "1692.38532946",
+                        "side": "sell",
+                        "category": "limit",
+                        "avgPrice": 0
+                    }
+                ]
+
+    ERRORS
+        > 403, 401 from GENERAL ERRORS   
+
+
+
+
+
+
+
+TRADING:
+
+    Place order
+        POST /accounts/{accountId}/{symbol}/orders
+        desc: Places a new order
+        ex: https://api.mercadobitcoin.net/api/v4/accounts/{accountId}/{symbol}/orders
+
+        PATH PARAMS
+            REQUIRED > accountId: The account id obtained from /accounts endpoint
+            REQUIRED > symbol: Instrument symbol in the form BASE-QUOTE(e.g. BTC-BRL)
+
+        PARAMS (In order of checking priority)
+            REQUIRED > side (string): String constants to describe an order side (Enum: 'buy' or 'sell')
+            REQUIRED > type (string): String constants to describe an order type (Enum: 'market', 'limit', 'stoplimit' and 'post-only')
+            REQUIRED > qty (string): Order quantity (volume). REQUIRED if cost is not set
+            OPTIONAL > limitPrice (number): Limit price per base currency (REQUIRED for orders with type limit, post-only or stoplimit)
+            OPTIONAL > async (boolean): Create an order asynchronously (default false). If true the order status response can be "created"
+            OPTIONAL > cost (number): Quote currency amount to be spent (used only for orders with type market and side buy)
+            OPTIONAL > externalId (string): External customized order Id                
+            OPTIONAL > stopPrice (number): Price that triggers a limit order creation (REQUIRED only for orders with type stoplimit)
+            
+
+        RESPONSE (200 OK)
+
+            orderId (string): Unique alphanumeric order identifier        
+        
+            example: {
+                "orderId": "01H50SZYF0WZQY8Q3NCJ2HGD8G"
+            }
+            
+        ERRORS
+            > 500 Internal Server Error:
+                1. When the symbol PATH parameter is sent in correct BASE-QUOTE form but the symbol is invalid                
+                2. When the PATH parameters and access token is correct but no object in sent on body
+                3. When the JSON object on body is not valid (no "" or no , for example)
+                data: {
+                    "code": "API|INTERNAL_SERVER_ERROR",
+                    "message": "An unexpected error has occurred"
+                }
+
+            > 422 Unprocessable Entity:
+                1. When some field is not the type it was meant to be:
+                    data: {
+                        "code": "API|UNPROCESSABLE_ENTITY",
+                        "message": "The field {FIELD} must be {TYPE THE FIELD SHOULD BE}"
+                    }            
+
+            > 404 Not found: When a symbol that is not on the format BASE-QUOTE is sent on the symbol PATH parameter (undefined too)
+                1. When the PATH parameter is not omited but in the wrong form described above:
+                    data: {
+                        "code": "API|ROUTE_NOT_FOUND",
+                        "message": "This route not found"
+                    }
+                2. When the PATH parameter is complete omited:
+                    data: {
+                        "error": {
+                            "code": 404,
+                            "status": "Not Found",
+                            "message": "The requested resource could not be found"
+                        }
+                    }
+
+            > 400 Bad request:
+                1. When an empty object is sent on body OR the value of "side" key is not "buy" or "sell" (not case sensitive)
+                    data: {
+                        "code": "TRADING|PLACE_ORDER|INVALID_SIDE",
+                        "message": "The params {side} needs to be buy or sell"
+                    }
+                2. When the "type" parameter is omited OR is not one of the enums:
+                    data: {
+                        "code": "TRADING|PLACE_ORDER|INVALID_ORDER_TYPE",
+                        "message": "Invalid order type"
+                    }
+                3. When the "qty" parameter is omited OR the "qty" value is an empty string OR the "qty" value is lower than the MINIMUM QTY:
+                    data: {
+                        "code": "TRADING|PLACE_ORDER|INVALID_MIN_QUANTITY",
+                        "message": "The param {qty} is lower than {MINIMUM QTY}"
+                    }
+                4. When the balance is lower than the balance needed to place the order:
+                    data: {
+                        "code": "TRADING|PLACE_ORDER|INSUFFICIENT_BALANCE",
+                        "message": "Insufficient balance to carry out the operation"
+                    }
+                IF TYPE = "limit"                
+                    1. When the "limitPrice" parameter is omited OR the "limitPrice" is lower than the MINIMUM PRICE
+                        data: {
+                            "code": "TRADING|PLACE_ORDER|INVALID_MIN_LIMIT_PRICE",
+                            "message": "The param {limitPrice} is lower than {MINIMUM}"
+                        }
+                    2. When the total order cost is lower than R$ 1:
+                        data: {
+                            "code": "TRADING|PLACE_ORDER|EXCEEDED_COST_LIMIT",
+                            "message": "The minimum or maximum cost has been exceeded."
+                        }
+                IF TYPE = "market"
+                    1. When the "qty" to be executed on the first book price is lower than R$ 1
+                        data: {
+                            "code": "TRADING|PLACE_ORDER|API_GENERIC_ERROR",
+                            "message": "An unexpected error has occurred"
+                        }
+                    PS: When doing a BUY market order the system will try to buy all the amount is in "qty" parameter, if the
+                    account balance is lower than the balance needed to fullfill the whole order it will execute everything it can with that balance, for example:
+                        buy market 1000, the lowest bid is 50, so i need 50000 in quote balance to fullfil my order, but i only have 25000, so it will buy only 500
+                    And when doing a SELL market order wth "qty" higher than the current account balance the system wont try to sell the current funds
+        
+
+
+---------------------------------------------------------------------------------
+
+
+
+    Get order
+        GET /accounts/{accountId}/{symbol}/orders/{orderId}
+        desc: Get unique order by identifier
+        ex: https://api.mercadobitcoin.net/api/v4/accounts/{accountId}/{symbol}/orders/{orderId}
+
+        PATH PARAMS
+            REQUIRED > accountId: The account id obtained from /accounts endpoint
+            REQUIRED > symbol: Instrument symbol in the form BASE-QUOTE(e.g. BTC-BRL)
+            REQUIRED > orderId: Order ID to fetch, here you can use both the ID generated by the API when crating a order through it or the plataform ID created in MBTC frontend            
+
+        RESPONSE (200 OK)
+
+            avgPrice (number): Simple average price. For stoplimit orders with no limit order triggered the displayed value will be 0.00000000.
+            cost (number): Cost used when placing the order (not considering fee application)
+            created_at (number): Date of order creation timestamp (UTC)
+            executions (Array of objects): Executed order transactions
+                executed_at (number): Executed at timestamp (UTC)
+                fee_rate (string): Transaction charged fee (%)
+                id (string): Id of transaction
+                instrument (string): Instrument symbol in the form BASE-QUOTE(e.g. BTC-BRL)
+                price (number): Executed price
+                qty	(string): Executed quantity (volume)
+                side (string): Executed side                
+                liquidity (string): Type of execution for the operation. Can be maker or taker            
+            fee	(string): Charged volume by fee application
+            filledQty (string): Filled quantity. For stoplimit orders with no limit order triggered the displayed value will be 0.00000000.
+            id (string): Unique order identifier.
+            instrument (string): Instrument symbol in the form BASE-QUOTE(e.g. BTC-BRL)
+            limitPrice (number): Limit price used when placing the limit order (not considering fee application)
+            qty (string): Volume used when placing the order (not considering fee application)
+            side (string): String constants to describe an order side      
+        
+            example: {
+                "id": "01J2VVYD6PNBQ38FXM2MZTEDMH", //Swapped with the Platform ID when fetching with it
+                "instrument": "TON-BRL",
+                "fee": "0.00000000",
+                "qty": "2.00000000",
+                "side": "buy",
+                "type": "limit",
+                "filledQty": "0.00000000",
+                "limitPrice": 40.55,
+                "triggerOrderId": "6294792541", //Not present when fetching with the platform ID
+                "status": "working",
+                "executions": [
+                    {
+                        "id": "36741442",
+                        "instrument": "TON-BRL",
+                        "price": 40.60020029,
+                        "qty": "1.16809030",
+                        "side": "sell",
+                        "fee_rate": "0.70000000",
+                        "executed_at": 1720906035,
+                        "liquidity": "taker"
+                    }
+                ],
+                "created_at": 1721069679,
+                "updated_at": 1721069679
+            }
+            
+        ERRORS
+            > 500 Internal Server Error:
+                1. When the symbol PATH parameter is sent in correct BASE-QUOTE form but the symbol is invalid                
+                2. When the PATH parameters and access token is correct but no object in sent on body
+                3. When the JSON object on body is not valid (no "" or no , for example)
+                data: {
+                    "code": "API|INTERNAL_SERVER_ERROR",
+                    "message": "An unexpected error has occurred"
+                }
+
+            > 404 Not found:
+                1. When the symbol PATH parameter is not in the correct BASE-QUOTE form
+                    data: {
+                        "code": "API|ROUTE_NOT_FOUND",
+                        "message": "This route not found"
+                    }
+
+            > 400 Bad request:
+                1. When the order ID is invalid:
+                    data: {
+                        "code": "TRADING|GET_ORDER|ORDER_NOT_FOUND",
+                        "message": "Order not found"
+                    }
+                2. When the symbol PATH parameter is invalid but is the form BASE-QUOTE (can be A-g and it is in form):
+                    data: {
+                        "code": "TRADING|GET_ORDER|INVALID_PAIR",
+                        "message": "{Base} or {Quote} is invalid"
+                    }
+
+
+
+---------------------------------------------------------------------------------
+
+
+
+    Cancel order
+
+        DELETE /accounts/{accountId}/{symbol}/orders/{orderId}
+        desc: Get unique order by identifier
+        ex: https://api.mercadobitcoin.net/api/v4/accounts/{accountId}/{symbol}/orders/{orderId}?async=false
+
+        PATH PARAMS
+            REQUIRED > accountId: The account id obtained from /accounts endpoint
+            REQUIRED > symbol: Instrument symbol in the form BASE-QUOTE(e.g. BTC-BRL)
+            REQUIRED > orderId: Order ID to fetch, here you can use both the ID generated by the API when creating a order through it or the plataform ID created in MBTC frontend            
+
+        RESPONSE (200 OK)
+            
+            example:  { 
+                //return an empty object when successfully canceled
+            }
+
+        ERRORS
+            > 404 Not found:
+                1. When the symbol PATH parameter is not in the correct BASE-QUOTE form
+                    data: {
+                        "code": "API|ROUTE_NOT_FOUND",
+                        "message": "This route not found"
+                    }
+
+            > 400 Bad request:
+                1. When the order ID is invalid:
+                    data: {
+                        "code": "TRADING|CANCEL_ORDER|ORDER_NOT_FOUND",
+                        "message": "Order not found"
+                    }
+                2. When the order status is "filled":
+                    data: {
+                        "code": "TRADING|CANCEL_ORDER|INVALID_STATUS",
+                        "message": "Order status is invalid"
+                    }
+
+        IMPORTANT NOTE: If the symbol PATH paremeter is in the BASE-QUOTE form it ignores it, considering only the Order ID
+
+---------------------------------------------------------------------------------
+
+
+
+WALLET: (NOT USED)
+
+
+
+
+
+
+AUTHORIZE:
+
+    POST /authorize
+    ex: https://api.mercadobitcoin.net/api/v4/authorize
+
+    PARAMS
+        REQUIRED > login (string): Login of user
+        REQUIRED > password (string): Password of user
+
+    RESPONSE (200 OK)
+
+        access_token (string): Access token acts as a session ID that the application uses for making requests.
+        This token should be protected as if it were user credentials.
+        
+        expiration: The time when the token is expired is represented as the number of seconds since the Unix epoch (00:00:00 UTC on 1 January 1970).
+        
+        example: {
+            "access_token": "01GF442ATTVP4M6M0XGHQYT544",
+            "expiration": 1666116857
+        }
+        
+    ERRORS
+        > 500 Internal Server Error: When no object is sent on body or something different from an object is sent
+            data: {
+                "code": "API|INTERNAL_SERVER_ERROR",
+                "message": "An unexpected error has occurred"
+            }
+
+        > 422 Unprocessable Entity: Received on following ocasions:
+            1. When an empty object is sent or if the "login" parameter is omited, for example if you send an object containing any other key rather than "login"
+                data: {
+                    "code": "API|REQUEST|LOGIN_MUST_BE_REQUIRED",
+                    "message": "The param {login} must be {required}"
+                }
+            2. When the password parameter is omited
+                data: {
+                    "code": "API|REQUEST|PASSWORD_MUST_BE_REQUIRED",
+                    "message": "The param {password} must be {required}"
+                }
+            PS: You can send whatever you want since the "login" and "password" parameters exist on body object, any other key will be ignored
+        
+        > 400 Bad Request: When the login and/or password parameter are invalid
+            data: {
+                "code": "AUTHORIZE|AUTHORIZATION|FORBIDDEN",
+                "message": "Invalid login or password"
+            }
+
+
+
+
+GENERAL ERRORS:
+
+404 Not found: When a request is made to a endpoint that doesnt exist, can be sent in 2 forms:
+
+    1. When NO Authorization header OR
+    a NON decodable JWT access token is sent on the Authorization header OR
+    the symbol PATH parameter is invalid
+        data: {
+            "code": "API|ROUTE_NOT_FOUND",
+            "message": "This route not found"
+        }
+        
+    2. When a DECODABLE (valid or not) JWT access token is sent on the Authorization header
+        data: {
+            "error": {
+                "code": 404,
+                "status": "Not Found",
+                "message": "The requested resource could not be found"
+            }
+        }
+
+403 Forbidden: MANY, see bellow
+
+    1. When no Authorization header is sent
+        data: {
+            "code": "API|FORBIDDEN",
+            "message": "You need to be authenticated"
+        }
+
+    2. When the accountId path parameter is invalid
+    OR a request is made to a endpoint that does exist but we are authorized to fetch it (undefined too)
+        data: {
+            "error": {
+                "code": 403,
+                "status": "Forbidden",
+                "message": "The requested action was forbidden"
+            }
+        }
+
+401 Unauthorized: When a request is made with an invalid Authorization header token
+    data: {
+        "error": {
+            "code": 401,
+            "status": "Unauthorized",
+            "message": "The request could not be authorized"
+        }
+    }

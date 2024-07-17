@@ -8,6 +8,9 @@ export default class Exchange {
             asks: undefined
         };
         this.orders = {};
+
+        this.baseUrl = 'https://api.mercadobitcoin.net/api/v4';
+        this.streamUrl = 'wss://ws.mercadobitcoin.net/ws';
     }
 
     generateOrderId() {
@@ -20,31 +23,14 @@ export default class Exchange {
     }
 
     createOrder(symbol, type, side, amount, price) {
-        const now = Date.now();
 
-        const order = {
-            id: this.generateOrderId(),
-            clientOrderId: undefined,
-            timestamp: now,
-            datetime: new Date(now).toISOString(),
-            lastTradeTimestamp: undefined,
-            lastUpdateTimestamp: now,
-            symbol,
-            type,
-            side,
-            amount,
-            price,
-            cost: undefined,
-            average: undefined,
-            filled: undefined,
-            remaining: undefined,
-            status: 'open',
-            fee: undefined,
-            trades: undefined,
-            fees: []
-        }
+        return {
+            orderId: this.generateOrderId()
+        };
+    }
 
-        return order;
+    getOrder() {
+
     }
 
     cancelOrder(id) {
