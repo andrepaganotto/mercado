@@ -206,6 +206,10 @@ TRADING:
                         "code": "TRADING|PLACE_ORDER|INVALID_MIN_QUANTITY",
                         "message": "The param {qty} is lower than {MINIMUM QTY}"
                     }
+                    3.1 When the "qty" is bigger than the MAXIMUM QTY: {
+                        code: 'TRADING|PLACE_ORDER|INVALID_MAX_QUANTITY',
+                        message: 'The param {qty} is higher than {MAXIMUM QTY}'
+                    }
                 4. When the balance is lower than the balance needed to place the order:
                     data: {
                         "code": "TRADING|PLACE_ORDER|INSUFFICIENT_BALANCE",
@@ -231,7 +235,7 @@ TRADING:
                     PS: When doing a BUY market order the system will try to buy all the amount is in "qty" parameter, if the
                     account balance is lower than the balance needed to fullfill the whole order it will execute everything it can with that balance, for example:
                         buy market 1000, the lowest bid is 50, so i need 50000 in quote balance to fullfil my order, but i only have 25000, so it will buy only 500
-                    And when doing a SELL market order wth "qty" higher than the current account balance the system wont try to sell the current funds
+                    And when doing a SELL market order with "qty" higher than the current account balance the system wont try to sell the current funds
         
 
 
@@ -463,7 +467,7 @@ GENERAL ERRORS:
         }
 
     2. When the accountId path parameter is invalid
-    OR a request is made to a endpoint that does exist but we are authorized to fetch it (undefined too)
+    OR a request is made to a endpoint that does exist but we are unauthorized to fetch it (undefined too)
         data: {
             "error": {
                 "code": 403,
